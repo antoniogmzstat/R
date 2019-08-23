@@ -1,0 +1,50 @@
+#En primer lugar cargamos el paquete para hacer el "rascado" de la web
+#Guardamos la dirección de la web y la leemos. Obtenemos la url de cada equipo para acceder a las plantillas y la guardamos en un vector para posteriormente recorrerlo con otro bucle
+library(rvest)
+library(tidyverse)
+url <- "https://www.lapreferente.com/C10029-1/tercera-division-grupo-9"
+content <- read_html(url)
+url_equipos<-vector()
+for (i in 1:20) {
+  url_equipos[i]<-content %>% html_node(paste("#filaEscudos > td:nth-child(",i,") > a")) %>% html_attr("href")
+}
+
+
+#Recorremos la web de cada equipo para acceder a la tabla que tiene las plantillas y las guardamos en un data.frame
+plantillas<-data.frame()
+for (i in url_equipos) {
+  url_plantilla<-paste("https://www.lapreferente.com/",i, sep = "")
+  html_plantilla<-read_html(url_plantilla)
+  plantilla<-html_plantilla %>% html_node("#tablePlantilla")%>% html_table()
+  plantilla$equipo<-rep(i, nrow(plantilla))
+  plantillas<-rbind(plantillas,plantilla)
+}
+
+#Solo nos quedamos con la información que nos interesa, en este caso, nombre, edad, demarcación y nombre de equipo 
+plantillas<-plantillas[,c(3:5,13)]
+plantillas<-plantillas[!plantillas$Jugador=="Jugador",]
+
+#Separo la edad de la variable cualitativa: Ser Sub 23. En principio no la utilizamos pero puede ser interesante en el futuro
+plantillas<-plantillas %>% separate(Edad, c('Edad', 'Sub'), sep="S")
+
+plantillas$Edad<-as.numeric(plantillas$Edad)
+plantillas$equipo<-as.factor(plantillas$equipo)
+
+#Limpieza de texto
+plantillas$equipo<-substring(plantillas$equipo, regexpr("/", plantillas$equipo)+1)
+plantillas$Jugador<-substring(plantillas$Jugador, 1,regexpr("\n", plantillas$Jugador)-1)
+
+plantillas$equipo<-toupper(plantillas$equipo)
+plantillas$equipo<-gsub("-", " ", plantillas$equipo)
+
+#Hay edades faltantes en la fuente de datos. Relleno a mano de aquellos calculando la edad en función de la temporada y categorías anteriores
+plantillas[is.na(plantillas$Edad),3]<-c(18,18,19,21,20,19,18,19,NA,22,19)
+
+
+library(ggplot2)
+#Dataset auxiliar para indicar los jugadores con edades atípicas en su equipo
+outliers<-plantillas%>% group_by(equipo)%>% filter (Edad > quantile(Edad, 0.75,na.rm = TRUE)+1.5*IQR(Edad, na.rm = TRUE) | Edad < quantile(Edad, 0.25,na.rm = TRUE)-1.5*IQR(Edad, na.rm = TRUE))
+
+
+#Gráfico
+ggplot()+geom_boxplot(data=plantillas, aes(y=plantillas$Edad, x=reorder(plantillas$equipo, plantillas$Edad, FUN = median, na.rm=TRUE), color=plantillas$equipo))+geom_text(data = outliers, aes(label=outliers$Jugador, x= outliers$equipo,y = outliers$Edad + 0.08), angle=10)+coord_flip()+labs(x="",y="Edad en años de los jugadores")+guides(color=FALSE)+ggtitle ("Distribución de la edad de las plantillas del grupo IX")
