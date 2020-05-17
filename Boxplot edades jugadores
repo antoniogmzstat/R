@@ -48,4 +48,4 @@ outliers<-plantillas%>% group_by(equipo)%>% filter (Edad > quantile(Edad, 0.75,n
 
 #Gráfico
 ggplot()+geom_boxplot(data=plantillas, aes(y=plantillas$Edad, x=reorder(plantillas$equipo, plantillas$Edad, FUN = median, na.rm=TRUE), color=plantillas$equipo))+geom_text(data = outliers, aes(label=outliers$Jugador, x= outliers$equipo,y = outliers$Edad + 0.08), angle=10)+coord_flip()+labs(x="",y="Edad en años de los jugadores")+guides(color=FALSE)+ggtitle ("Distribución de la edad de las plantillas del grupo IX")
-#
+##
